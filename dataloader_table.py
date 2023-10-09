@@ -37,7 +37,10 @@ def get_table_data(batch_size, data_dir, dataset, oodclass_idx, fold_idx, **kwar
 
     train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
     test_id_loader = DataLoader(dataset=test_id_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
-    test_ood_loader = DataLoader(dataset=test_ood_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
+    if len(test_ood_dataset) == 0:
+        test_ood_loader = None
+    else:
+        test_ood_loader = DataLoader(dataset=test_ood_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
 
     return train_loader, test_id_loader, test_ood_loader
 

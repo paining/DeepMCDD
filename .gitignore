@@ -1,0 +1,5 @@
+__pycache__
+table_data
+runs
+.hypothesis
+*.npy

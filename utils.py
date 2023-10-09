@@ -6,6 +6,7 @@
 import os
 import torch
 import numpy as np
+from tqdm import tqdm
 
 def compute_confscores(model, test_loader, outdir, id_flag):
     total = 0
@@ -16,7 +17,7 @@ def compute_confscores(model, test_loader, outdir, id_flag):
 
     f = open(outfile, 'w')
     
-    for data, _ in test_loader:
+    for data, _ in tqdm(test_loader, desc=f"{'InDist' if id_flag else 'OutOfDist'}", leave=False):
         dists = model(data.cuda())
         confscores, _ = torch.min(dists, dim=1)
         total += data.size(0)

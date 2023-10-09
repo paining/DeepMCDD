@@ -1,5 +1,6 @@
 import os, argparse
 import torch
+from torch.utils.tensorboard.writer import SummaryWriter
 import numpy as np
 
 from tqdm import tqdm, trange
@@ -7,6 +8,7 @@ from tqdm import tqdm, trange
 import models
 from dataloader_table import get_table_data
 from utils import compute_confscores, compute_metrics, print_ood_results, print_ood_results_total
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='gas | shuttle | drive | mnist')
@@ -30,16 +32,19 @@ def main():
     outdir = os.path.join(args.outdir, args.net_type + '_' + args.dataset)
 
     if os.path.isdir(outdir) == False:
-        os.mkdir(outdir)
+        os.makedirs(outdir, exist_ok=True)
 
     torch.manual_seed(0)
     torch.cuda.manual_seed_all(0)
     torch.cuda.set_device(args.gpu)
 
     best_idacc_list, best_oodacc_list = [], []
-    for fold_idx in trange(args.num_folds, desc="N-folds"):
+    for fold_idx in range(args.num_folds):
         
         train_loader, test_id_loader, test_ood_loader = get_table_data(args.batch_size, args.datadir, args.dataset, args.oodclass_idx, fold_idx)
+
+        writer = SummaryWriter()
+        max_acc = 0
 
         if args.dataset == 'gas':
             num_classes, num_features = 6, 128
@@ -50,9 +55,9 @@ def main():
         elif args.dataset == 'mnist':
             num_classes, num_features = 10, 784
         elif args.dataset == "dac":
-            num_classes, num_features = 4, 1536
+            num_classes, num_features = 2, 1536
         
-        model = models.MLP_DeepMCDD(num_features, args.num_layers*[args.latent_size], num_classes=num_classes-1)
+        model = models.MLP_DeepMCDD(num_features, [1536, 2000, 1000, 500, 100], num_classes=num_classes)
         model.cuda()
 
         ce_loss = torch.nn.CrossEntropyLoss()
@@ -63,6 +68,8 @@ def main():
         for epoch in trange(args.num_epochs, desc="epochs", leave=False):
             model.train()
             total_loss = 0.0
+            total_push_loss = 0.0
+            total_pull_loss = 0.0
              
             for i, (data, labels) in enumerate(tqdm(train_loader, desc="train", leave=False)):
                 data, labels = data.cuda(), labels.cuda()
@@ -80,6 +87,12 @@ def main():
                 optimizer.step()
         
                 total_loss += loss.item()
+                total_pull_loss += pull_loss.item()
+                total_push_loss += push_loss.item()
+
+            writer.add_scalar("Loss/Train Total", total_loss, epoch)
+            writer.add_scalar("Loss/Train Pull", total_pull_loss, epoch)
+            writer.add_scalar("Loss/Train Push", total_push_loss, epoch)
 
             model.eval()
             with torch.no_grad():
@@ -91,29 +104,38 @@ def main():
                     _, predicted = torch.max(scores, 1)
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
-                idacc_list.append(100 * correct / total)
+                accuracy = 100 * correct / total
+                idacc_list.append(accuracy)
+                if accuracy > max_acc:
+                    max_acc = accuracy
+                    tqdm.write(f"Best model saved at {epoch} epoch(Accuracy = {accuracy:.2f})")
+                    torch.save(model.state_dict(), os.path.join(outdir, "best.pt"))
                 
-                # (2) evaluate OOD detection
-                compute_confscores(model, test_id_loader, outdir, True)
-                compute_confscores(model, test_ood_loader, outdir, False)
-                oodacc_list.append(compute_metrics(outdir))
+                # # (2) evaluate OOD detection
+                # compute_confscores(model, test_id_loader, outdir, True)
+                # compute_confscores(model, test_ood_loader, outdir, False)
+                # oodacc_list.append(compute_metrics(outdir))
 
+            writer.add_scalar("Eval/InDist acc", accuracy, epoch)
+            writer.flush()
         best_idacc = max(idacc_list)
-        best_oodacc = oodacc_list[idacc_list.index(best_idacc)]
+        # best_oodacc = oodacc_list[idacc_list.index(best_idacc)]
         
         print('== {fidx:1d}-th fold results =='.format(fidx=fold_idx+1))
         print('The best ID accuracy on "{idset:s}" test samples : {val:6.2f}'.format(idset=args.dataset, val=best_idacc))
-        print('The best OOD accuracy on "{oodset:s}" test samples :'.format(oodset=args.dataset+'_'+str(args.oodclass_idx)))
-        print_ood_results(best_oodacc)
+        # print('The best OOD accuracy on "{oodset:s}" test samples :'.format(oodset=args.dataset+'_'+str(args.oodclass_idx)))
+        # print_ood_results(best_oodacc)
 
         best_idacc_list.append(best_idacc)
-        best_oodacc_list.append(best_oodacc)
+        # best_oodacc_list.append(best_oodacc)
+        writer.close()
 
     print('== Final results ==')
     print('The best ID accuracy on "{idset:s}" test samples : {mean:6.2f} ({std:6.3f})'.format(idset=args.dataset, mean=np.mean(best_idacc_list), std=np.std(best_idacc_list)))
-    print('The best OOD accuracy on "{oodset:s}" test samples :'.format(oodset='class_'+str(args.oodclass_idx)))
-    print_ood_results_total(best_oodacc_list)
- 
+    # print('The best OOD accuracy on "{oodset:s}" test samples :'.format(oodset='class_'+str(args.oodclass_idx)))
+    # print_ood_results_total(best_oodacc_list)
+
+
 
 if __name__ == '__main__':
     main()
