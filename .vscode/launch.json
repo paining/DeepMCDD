@@ -1,0 +1,66 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Train",
+            "type": "python",
+            "request": "launch",
+            "program": "train_deepmcdd_dac.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--dataset", "dac_2class",
+                "--net_type", "mlp",
+                "--oodclass_idx", "3",
+                "--num_folds", "1",
+                "--num_epochs", "200",
+                "--outdir", "output/dac_231011_2"
+            ]
+        },
+        {
+            "name": "Test",
+            "type": "python",
+            "request": "launch",
+            "program": "test_deepmcdd_dac.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--data_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/test",
+                "--gt_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
+                "--ckpt", "output/dac_231011/mlp_dac_2class/best.pt",
+                "--save_path", "output/dac_231011/mlp_dac_2class/result",
+                "--ignore_neighbor", "2",
+                "--device", "0",
+            ]
+        },
+        {
+            "name": "Make DAC dataset",
+            "type": "python",
+            "request": "launch",
+            "program": "make_dataset.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--data_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/train",
+                "--gt_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
+                "--ignore_neighbor", "2",
+                "--device", "0",
+            ]
+        },
+    ]
+}

@@ -76,10 +76,16 @@ if __name__ == "__main__":
     BI_NP = []
     BI_AP = []
     
-    normal_mask_list = []
-    defect_mask_list = []
+    GI_NP_masks = []
+    BI_NP_masks = []
+    BI_AP_masks = []
     for x, gt, y, file_name in tqdm(train_loader, ncols=79, desc="Sampling"):
-        patchwise_gt = TF.max_pool2d(gt, kernel_size=8, stride=8)
+        # patchwise_gt = TF.max_pool2d(gt, kernel_size=8, stride=8)
+        patchwise_gt = (
+            TF.unfold(gt, kernel_size=8, stride=8)
+            .sum(dim=-2)
+            .reshape(gt.shape[0],-1, gt.shape[-2]//8, gt.shape[-1]//8)
+            )
         if args.ignore_neighbor != 0:
             kernel_size = 2*args.ignore_neighbor + 1
             normal_mask = (
@@ -93,21 +99,37 @@ if __name__ == "__main__":
         else:
             normal_mask = patchwise_gt == 0
 
-        defect_mask = patchwise_gt != 0
+        defect_mask = patchwise_gt >= 7
         normal_mask = rearrange(normal_mask, "b c h w -> (b h w) c").squeeze(dim=1)
         defect_mask = rearrange(defect_mask, "b c h w -> (b h w) c").squeeze(dim=1)
-        normal_mask_list.append(normal_mask.detach().cpu().numpy())
-        defect_mask_list.append(defect_mask.detach().cpu().numpy())
+        if y[0] == 0:
+            GI_NP_masks.append(normal_mask.detach().cpu().numpy())
+            BI_NP_masks.append(np.zeros(normal_mask.shape, dtype=np.bool_))
+            BI_AP_masks.append(np.zeros(normal_mask.shape, dtype=np.bool_))
+        else:
+            GI_NP_masks.append(np.zeros(normal_mask.shape, dtype=np.bool_))
+            BI_NP_masks.append(normal_mask.detach().cpu().numpy())
+            BI_AP_masks.append(defect_mask.detach().cpu().numpy())
     
-    nPatches = [ m.size for m in normal_mask_list]
-    masks = np.concatenate(normal_mask_list, axis=None)
-    normal_idx = np.random.choice(np.where(masks != 0)[0], 500000, replace=False)
+    nPatches = [ m.size for m in GI_NP_masks]
+    masks = np.concatenate(GI_NP_masks, axis=None)
+    idx = np.random.choice(np.where(masks != 0)[0], 250000, replace=False)
     masks = np.zeros_like(masks)
-    masks[normal_idx] = True
-    normal_mask_list = []
+    masks[idx] = True
+    GI_NP_masks = []
     for n in nPatches:
         m, masks = np.split(masks, [n])
-        normal_mask_list.append(m)
+        GI_NP_masks.append(m)
+
+    nPatches = [ m.size for m in BI_NP_masks]
+    masks = np.concatenate(BI_NP_masks, axis=None)
+    idx = np.random.choice(np.where(masks != 0)[0], 250000, replace=False)
+    masks = np.zeros_like(masks)
+    masks[idx] = True
+    BI_NP_masks = []
+    for n in nPatches:
+        m, masks = np.split(masks, [n])
+        BI_NP_masks.append(m)
 
 
     for i, (x, gt, y, file_name),  in enumerate(tqdm(train_loader, ncols=79, desc="Featuring")):
@@ -132,19 +154,26 @@ if __name__ == "__main__":
                     )
                 )
 
-        normal_mask = normal_mask_list[i]
-        defect_mask = defect_mask_list[i]
-        
         embedding = rearrange(embedding, "b c h w -> (b h w) c")
-        if y == 0:
-            GI_NP.append(embedding[normal_mask].detach().cpu().numpy())
-        else:
-            BI_NP.append(embedding[normal_mask].detach().cpu().numpy())
-            BI_AP.append(embedding[defect_mask].detach().cpu().numpy())
+
+        # normal_mask = normal_mask_list[i]
+        # defect_mask = defect_mask_list[i]
+        
+        # if y == 0:
+        #     GI_NP.append(embedding[normal_mask].detach().cpu().numpy())
+        # else:
+        #     BI_NP.append(embedding[normal_mask].detach().cpu().numpy())
+        #     BI_AP.append(embedding[defect_mask].detach().cpu().numpy())
+
+        GI_NP.append(embedding[GI_NP_masks[i]].detach().cpu().numpy())
+        BI_NP.append(embedding[BI_NP_masks[i]].detach().cpu().numpy())
+        BI_AP.append(embedding[BI_AP_masks[i]].detach().cpu().numpy())
 
     GI_NP = np.concatenate(GI_NP, axis=0)
     BI_NP = np.concatenate(BI_NP, axis=0)
     BI_AP = np.concatenate(BI_AP, axis=0)
+
+    np.save("dac_1class.npy", (BI_AP, np.zeros((len(BI_AP),)), 2), allow_pickle=True)
 
     GI_NP_labels = 0 * np.ones((len(GI_NP),))
     BI_NP_labels = 0 * np.ones((len(BI_NP),))

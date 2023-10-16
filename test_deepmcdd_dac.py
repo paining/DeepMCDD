@@ -63,13 +63,15 @@ def get_dataloader(data_path, gt_path):
 def test():
 
     args = arg_parse()
+
+    os.makedirs(args.save_path, exist_ok=True)
     torch.manual_seed(0)
     torch.cuda.manual_seed_all(0)
     torch.cuda.set_device(args.gpu)
 
     num_classes, num_features = 2, 1536
     
-    model = models.MLP_DeepMCDD(num_features, [1536, 2000, 1000, 500, 100], num_classes=num_classes)
+    model = models.MLP_DeepMCDD(num_features, [3000, 2000, 1000, 100], num_classes=num_classes)
     model.load_state_dict(torch.load(args.ckpt, map_location="cpu"))
     model.cuda()
     model.eval()
@@ -164,6 +166,48 @@ def test():
     BI_AP_scores = np.concatenate(BI_AP_scores)
 
     for c in range(num_classes):
+        fig, ax = plt.subplots()
+        ax.hist(
+            np.concatenate([
+                GI_NP_scores[:, c][GI_NP_scores[:, -1] < 0.001],
+                BI_NP_scores[:, c][BI_NP_scores[:, -1] < 0.001]
+            ]),
+            bins=100, histtype="step", alpha=0.5,
+            color="green", label="Normal Patch"
+        )
+        ax.hist(
+            BI_AP_scores[:, c][BI_AP_scores[:, -1] < 0.001],
+            bins=100, histtype="step", alpha=0.5,
+            color="orange", label="Anormaly Patch"
+        )
+        ax.set_yscale("log")
+        ax.legend()
+        ax.set_title(f"Score Distribution with Class {c}")
+        fig.tight_layout()
+        fig.savefig(os.path.join(args.save_path, f"Class {c} Score Distribution(conf<0.001).png"))
+        plt.close(fig)
+
+        fig, ax = plt.subplots()
+        ax.hist(
+            np.concatenate([
+                GI_NP_scores[:, c][np.logical_and(GI_NP_scores[:, -1] < 0.001, GI_NP_scores[:,c] > -1)],
+                BI_NP_scores[:, c][np.logical_and(BI_NP_scores[:, -1] < 0.001, BI_NP_scores[:,c] > -1)]
+            ]),
+            bins=100, histtype="step", alpha=0.5,
+            color="green", label="Normal Patch"
+        )
+        ax.hist(
+            BI_AP_scores[:, c][np.logical_and(BI_AP_scores[:, -1] < 0.001, BI_AP_scores[:,c] > -1)],
+            bins=100, histtype="step", alpha=0.5,
+            color="orange", label="Anormaly Patch"
+        )
+        ax.set_yscale("log")
+        ax.legend()
+        ax.set_title(f"Score Distribution with Class {c}")
+        fig.tight_layout()
+        fig.savefig(os.path.join(args.save_path, f"Class {c} Score Distribution(conf<0.001)_zoom.png"))
+        plt.close(fig)
+
         fig, ax = plt.subplots()
         ax.hist(
             GI_NP_scores[:, c], bins=100, histtype="step", alpha=0.5,

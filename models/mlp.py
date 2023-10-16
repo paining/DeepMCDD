@@ -78,7 +78,9 @@ class MLP_DeepMCDD(nn.Module):
        
         for i in range(len(layer_sizes)-1):
             layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
-            layers.append(nn.ReLU())
+            layers.append(nn.BatchNorm1d(layer_sizes[i+1]))
+            layers.append(nn.LeakyReLU())
+            # layers.append(nn.ReLU())
         layers.append(nn.Linear(layer_sizes[-1], self.latent_size))
         self.layers = nn.ModuleList(layers)
 

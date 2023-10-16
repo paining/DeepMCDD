@@ -54,10 +54,10 @@ def main():
             num_classes, num_features = 7, 9
         elif args.dataset == 'mnist':
             num_classes, num_features = 10, 784
-        elif args.dataset == "dac":
+        elif args.dataset.startswith("dac"):
             num_classes, num_features = 2, 1536
         
-        model = models.MLP_DeepMCDD(num_features, [1536, 2000, 1000, 500, 100], num_classes=num_classes)
+        model = models.MLP_DeepMCDD(num_features, [3000, 2000, 1000, 100], num_classes=num_classes)
         model.cuda()
 
         ce_loss = torch.nn.CrossEntropyLoss()
@@ -95,12 +95,26 @@ def main():
             writer.add_scalar("Loss/Train Push", total_push_loss, epoch)
 
             model.eval()
+            total_loss = 0.0
+            total_push_loss = 0.0
+            total_pull_loss = 0.0
             with torch.no_grad():
                 # (1) evaluate ID classification
                 correct, total = 0, 0
                 for data, labels in tqdm(test_id_loader, desc="Test-Classification", leave=False):
                     data, labels = data.cuda(), labels.cuda()
-                    scores = - model(data) + model.alphas
+                    dists = model(data) 
+                    scores = - dists + model.alphas
+
+                    label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
+
+                    pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
+                    push_loss = ce_loss(scores, labels)
+                    loss = args.reg_lambda * pull_loss + push_loss 
+                    total_loss += loss.item()
+                    total_pull_loss += pull_loss.item()
+                    total_push_loss += push_loss.item()
+
                     _, predicted = torch.max(scores, 1)
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
@@ -110,6 +124,7 @@ def main():
                     max_acc = accuracy
                     tqdm.write(f"Best model saved at {epoch} epoch(Accuracy = {accuracy:.2f})")
                     torch.save(model.state_dict(), os.path.join(outdir, "best.pt"))
+                    torch.save(model.state_dict(), os.path.join(outdir, f"{epoch}.pt"))
                 
                 # # (2) evaluate OOD detection
                 # compute_confscores(model, test_id_loader, outdir, True)
@@ -117,6 +132,21 @@ def main():
                 # oodacc_list.append(compute_metrics(outdir))
 
             writer.add_scalar("Eval/InDist acc", accuracy, epoch)
+            writer.add_scalar("Loss/Valid Total", total_loss, epoch)
+            writer.add_scalar("Loss/Valid Pull", total_pull_loss, epoch)
+            writer.add_scalar("Loss/Valid Push", total_push_loss, epoch)
+            centroid_dist = (
+                torch.cdist(
+                    model.centers[0,:].reshape(1,1,-1),
+                    model.centers[1,:].reshape(1,1,-1)
+                ).squeeze().item()
+            )
+            writer.add_scalar("Param/D(mu_0, mu_1)", centroid_dist, epoch)
+            writer.add_scalar("Param/Sigma_0", model.logsigmas[0], epoch)
+            writer.add_scalar("Param/Sigma_1", model.logsigmas[1], epoch)
+            writer.add_scalar("Param/alpha_0", model.alphas[0], epoch)
+            writer.add_scalar("Param/alpha_1", model.alphas[1], epoch)
+
             writer.flush()
         best_idacc = max(idacc_list)
         # best_oodacc = oodacc_list[idacc_list.index(best_idacc)]
