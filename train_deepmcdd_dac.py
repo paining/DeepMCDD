@@ -54,8 +54,12 @@ def main():
             num_classes, num_features = 7, 9
         elif args.dataset == 'mnist':
             num_classes, num_features = 10, 784
-        elif args.dataset.startswith("dac"):
+        elif args.dataset == "dac_1class":
+            num_classes, num_features = 1, 1536
+        elif args.dataset == "dac_2class":
             num_classes, num_features = 2, 1536
+        elif args.dataset == "dac_3class":
+            num_classes, num_features = 3, 1536
         
         model = models.MLP_DeepMCDD(num_features, [3000, 2000, 1000, 100], num_classes=num_classes)
         model.cuda()
