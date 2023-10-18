@@ -3,3 +3,4 @@ table_data
 runs
 .hypothesis
 *.npy
+.result

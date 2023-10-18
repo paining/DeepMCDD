@@ -20,12 +20,12 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args":[ 
-                "--dataset", "dac_2class",
+                "--dataset", "dac_1class",
                 "--net_type", "mlp",
                 "--oodclass_idx", "3",
                 "--num_folds", "1",
                 "--num_epochs", "200",
-                "--outdir", "output/dac_231011_2"
+                "--outdir", ".result/dac_1class"
             ]
         },
         {
@@ -40,8 +40,8 @@
                 "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/test",
                 "--gt_path",
                 "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
-                "--ckpt", "output/dac_231011/mlp_dac_2class/best.pt",
-                "--save_path", "output/dac_231011/mlp_dac_2class/result",
+                "--ckpt", ".result/dac_2class_231016/mlp_dac_2class/13.pt",
+                "--save_path", ".result/dac_2class_231016/mlp_dac_2class/result/13",
                 "--ignore_neighbor", "2",
                 "--device", "0",
             ]
@@ -58,6 +58,40 @@
                 "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/train",
                 "--gt_path",
                 "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
+                "--ignore_neighbor", "2",
+                "--device", "0",
+            ]
+        },
+        {
+            "name": "Train-1class",
+            "type": "python",
+            "request": "launch",
+            "program": "train_deepmcdd_dac.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--dataset", "dac_2class",
+                "--net_type", "mlp",
+                "--oodclass_idx", "0",
+                "--num_folds", "1",
+                "--num_epochs", "200",
+                "--outdir", ".result/dac_1class_ood_0"
+            ]
+        },
+        {
+            "name": "Test-1class",
+            "type": "python",
+            "request": "launch",
+            "program": "test_deepmcdd_dac_oneclass.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--data_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/test",
+                "--gt_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
+                "--ckpt", ".result/dac_1class/mlp_dac_1class/11.pt",
+                "--save_path", ".result/dac_1class/mlp_dac_1class/result/11",
                 "--ignore_neighbor", "2",
                 "--device", "0",
             ]

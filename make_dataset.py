@@ -173,7 +173,13 @@ if __name__ == "__main__":
     BI_NP = np.concatenate(BI_NP, axis=0)
     BI_AP = np.concatenate(BI_AP, axis=0)
 
-    np.save("dac_1class.npy", (BI_AP, np.zeros((len(BI_AP),)), 2), allow_pickle=True)
+    total = np.concatenate([GI_NP, BI_NP, BI_AP], axis=0)
+    mean, std = np.mean(total, axis=0), np.std(total, axis=0)
+    GI_NP = (GI_NP - mean) / std
+    BI_NP = (BI_NP - mean) / std
+    BI_AP = (BI_AP - mean) / std
+
+    np.save("dac_1class.npy", (BI_AP, np.zeros((len(BI_AP),)), 1), allow_pickle=True)
 
     GI_NP_labels = 0 * np.ones((len(GI_NP),))
     BI_NP_labels = 0 * np.ones((len(BI_NP),))
