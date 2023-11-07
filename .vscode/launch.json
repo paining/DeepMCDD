@@ -96,5 +96,134 @@
                 "--device", "0",
             ]
         },
+        {
+            "name": "Train-Conv",
+            "type": "python",
+            "request": "launch",
+            "program": "train_PPatchMCDD_dac.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--dataset", "dac_conv_train",
+                "--datadir", "/home/work/.data/dac/P1_PPatch",
+                "--net_type", "conv",
+                "--oodclass_idx", "3",
+                "--num_folds", "1",
+                "--num_epochs", "200",
+                "--learning_rate", "0.0001",
+                "--alpha", "0.5",
+                "--reg_lambda", "1e-2",
+                "--outdir", ".result/231101_oneclass_conv_replicate_ldim=10_2"
+            ]
+        },
+        {
+            "name": "Test-Conv",
+            "type": "python",
+            "request": "launch",
+            "program": "test_PPatchMCDD_dac.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--data_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/test",
+                "--gt_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
+                "--ckpt", ".result/231101_oneclass_conv_replicate_ldim=10_2/conv_dac_conv_train/11.pt",
+                "--save_path", ".result/231101_oneclass_conv_replicate_ldim=10_2/conv_dac_conv_train/result/11",
+                "--ignore_neighbor", "2",
+                "--device", "0",
+            ]
+        },
+        {
+            "name": "Train-Conv-Oneclass",
+            "type": "python",
+            "request": "launch",
+            "program": "train_PPatchMCDD_dac_image.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--data_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/test",
+                "--gt_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
+                "--num_epochs", "500",
+                "--learning_rate", "0.00001",
+                "--alpha", "0.5",
+                "--reg_lambda", "1e-3",
+                "--outdir", ".result/231031_dac_2class_conv_replicate_ldim=10"
+            ]
+        },
+        {
+            "name": "Train-VAE",
+            "type": "python",
+            "request": "launch",
+            "program": "train_vae.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--data_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation",
+                "--gt_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
+                "--num_epochs", "200",
+                "--learning_rate", "0.005",
+                "--save_path", ".result/231107_vae_simple_betalearning",
+                "--device", "0"
+            ]
+        },
+        {
+            "name": "Test-VAE",
+            "type": "python",
+            "request": "launch",
+            "program": "train_vae.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--data_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation",
+                "--gt_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
+                "--save_path", ".result/231103_vae_simple",
+                "--device", "0",
+                "--eval",
+                "--ckpt", ".result/231103_vae_simple/models/best.pt"
+            ]
+        },
+        {
+            "name": "Train-AE",
+            "type": "python",
+            "request": "launch",
+            "program": "train_ae.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--data_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation",
+                "--gt_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
+                "--num_epochs", "50",
+                "--learning_rate", "0.001",
+                "--save_path", ".result/231107_ae_simple",
+                "--device", "0"
+            ]
+        },
+        {
+            "name": "Test-AE",
+            "type": "python",
+            "request": "launch",
+            "program": "train_ae.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args":[ 
+                "--data_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation",
+                "--gt_path",
+                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
+                "--save_path", ".result/231103_vae_simple",
+                "--device", "0",
+                "--eval",
+                "--ckpt", ".result/231103_vae_simple/models/best.pt"
+            ]
+        },
     ]
 }

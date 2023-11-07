@@ -134,27 +134,29 @@ if __name__ == "__main__":
 
     for i, (x, gt, y, file_name),  in enumerate(tqdm(train_loader, ncols=79, desc="Featuring")):
         x = x.to(device)
-        with torch.no_grad():
-            embedding = None
-            features = feature_extractor(x)
-            for l, feature in enumerate(features):
-                if l == 0: continue
-                if args.padding_mode == "zeros":
-                    o = TF.avg_pool2d(TF.pad(feature, (1,1,1,1), "constant"), 3, 1, 0)
-                elif args.padding_mode == "replicate":
-                    o = TF.avg_pool2d(TF.pad(feature, (1,1,1,1), args.padding_mode), 3, 1, 0)
-                else:
-                    logger.error( f"Unknown padding mode : {args.padding_mode}")
-                    o = feature
-                embedding = (
-                    o if embedding is None 
-                    else torch.cat(
-                        (embedding, TF.interpolate(o, embedding.shape[2:], mode='bilinear')),
-                        dim=1
-                    )
-                )
+        # with torch.no_grad():
+        #     embedding = None
+        #     features = feature_extractor(x)
+        #     for l, feature in enumerate(features):
+        #         if l == 0: continue
+        #         if args.padding_mode == "zeros":
+        #             o = TF.avg_pool2d(TF.pad(feature, (1,1,1,1), "constant"), 3, 1, 0)
+        #         elif args.padding_mode == "replicate":
+        #             o = TF.avg_pool2d(TF.pad(feature, (1,1,1,1), args.padding_mode), 3, 1, 0)
+        #         else:
+        #             logger.error( f"Unknown padding mode : {args.padding_mode}")
+        #             o = feature
+        #         embedding = (
+        #             o if embedding is None 
+        #             else torch.cat(
+        #                 (embedding, TF.interpolate(o, embedding.shape[2:], mode='bilinear')),
+        #                 dim=1
+        #             )
+        #         )
 
-        embedding = rearrange(embedding, "b c h w -> (b h w) c")
+        # embedding = rearrange(embedding, "b c h w -> (b h w) c")
+
+        embedding = TF.unfold(x.mean(dim=1), kernel_size=8, stride=8).reshape(-1, 64)
 
         # normal_mask = normal_mask_list[i]
         # defect_mask = defect_mask_list[i]
@@ -173,26 +175,45 @@ if __name__ == "__main__":
     BI_NP = np.concatenate(BI_NP, axis=0)
     BI_AP = np.concatenate(BI_AP, axis=0)
 
-    total = np.concatenate([GI_NP, BI_NP, BI_AP], axis=0)
-    mean, std = np.mean(total, axis=0), np.std(total, axis=0)
-    GI_NP = (GI_NP - mean) / std
-    BI_NP = (BI_NP - mean) / std
-    BI_AP = (BI_AP - mean) / std
+    patches, labels, _ = np.load("/home/work/.data/dac/P1_PPatch/dac_2class.npy", allow_pickle=True)
+    print(patches.shape, labels.shape)
 
-    np.save("dac_1class.npy", (BI_AP, np.zeros((len(BI_AP),)), 1), allow_pickle=True)
+    total_data = np.concatenate([GI_NP, BI_NP, patches[labels==1]], axis=0)
+    total_label = np.concatenate(
+        [
+            np.zeros((len(GI_NP) + len(BI_NP))),
+            np.ones((np.count_nonzero(labels==1)))
+        ],
+        axis=0
+    )
+    print(total_data.shape, total_label.shape)
 
-    GI_NP_labels = 0 * np.ones((len(GI_NP),))
-    BI_NP_labels = 0 * np.ones((len(BI_NP),))
-    BI_AP_labels = 1 * np.ones((len(BI_AP),))
+    np.save(
+        "/home/work/.data/dac/P1_PPatch/dac_conv_train.npy",
+        (total_data, total_label, 2),
+        allow_pickle=True
+    )
 
-    features = np.concatenate((GI_NP, BI_NP, BI_AP), axis=0)
-    labels = np.concatenate((GI_NP_labels, BI_NP_labels, BI_AP_labels), axis=0)
-    np.save("dac_2class.npy", (features, labels, 2), allow_pickle=True)
+    # total = np.concatenate([GI_NP, BI_NP, BI_AP], axis=0)
+    # mean, std = np.mean(total, axis=0), np.std(total, axis=0)
+    # GI_NP = (GI_NP - mean) / std
+    # BI_NP = (BI_NP - mean) / std
+    # BI_AP = (BI_AP - mean) / std
 
-    GI_NP_labels = 0 * np.ones((len(GI_NP),))
-    BI_NP_labels = 1 * np.ones((len(BI_NP),))
-    BI_AP_labels = 2 * np.ones((len(BI_AP),))
+    # np.save("dac_1class.npy", (BI_AP, np.zeros((len(BI_AP),)), 1), allow_pickle=True)
 
-    features = np.concatenate((GI_NP, BI_NP, BI_AP), axis=0)
-    labels = np.concatenate((GI_NP_labels, BI_NP_labels, BI_AP_labels), axis=0)
-    np.save("dac_3class.npy", (features, labels, 3), allow_pickle=True)
+    # GI_NP_labels = 0 * np.ones((len(GI_NP),))
+    # BI_NP_labels = 0 * np.ones((len(BI_NP),))
+    # BI_AP_labels = 1 * np.ones((len(BI_AP),))
+
+    # features = np.concatenate((GI_NP, BI_NP, BI_AP), axis=0)
+    # labels = np.concatenate((GI_NP_labels, BI_NP_labels, BI_AP_labels), axis=0)
+    # np.save("dac_2class.npy", (features, labels, 2), allow_pickle=True)
+
+    # GI_NP_labels = 0 * np.ones((len(GI_NP),))
+    # BI_NP_labels = 1 * np.ones((len(BI_NP),))
+    # BI_AP_labels = 2 * np.ones((len(BI_AP),))
+
+    # features = np.concatenate((GI_NP, BI_NP, BI_AP), axis=0)
+    # labels = np.concatenate((GI_NP_labels, BI_NP_labels, BI_AP_labels), axis=0)
+    # np.save("dac_3class.npy", (features, labels, 3), allow_pickle=True)
