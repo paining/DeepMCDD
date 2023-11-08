@@ -162,13 +162,14 @@
             "justMyCode": true,
             "args":[ 
                 "--data_path",
-                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation",
+                "/mnt/hdd/Project-DAC/data/PN23_DAC_Silver/SI_06/augmentation",
                 "--gt_path",
-                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
-                "--num_epochs", "100",
-                "--learning_rate", "0.0005",
-                "--save_path", ".result/231108_vae_simple_minibatch_cyclelearning_ldim=512",
-                "--device", "0"
+                "/mnt/hdd/Project-DAC/data/PN23_DAC_Silver/SI_06/augmentation/ground_truth",
+                "--num_epochs", "20",
+                "--learning_rate", "0.00001",
+                "--save_path", ".result/231108_vae_simple_betalearning_retrain",
+                "--ckpt", ".result/231108_vae_simple_betalearning/models/19.pt",
+                "--device", "1"
             ]
         },
         {
@@ -180,13 +181,13 @@
             "justMyCode": true,
             "args":[ 
                 "--data_path",
-                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation",
+                "/mnt/hdd/Project-DAC/data/PN23_DAC_Silver/SI_06/augmentation",
                 "--gt_path",
-                "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
-                "--save_path", ".result/231103_vae_simple",
+                "/mnt/hdd/Project-DAC/data/PN23_DAC_Silver/SI_06/augmentation/ground_truth",
+                "--save_path", ".result/231107_vae_simple_betalearning",
                 "--device", "0",
                 "--eval",
-                "--ckpt", ".result/231103_vae_simple/models/best.pt"
+                "--ckpt", ".result/231107_vae_simple_betalearning/models/9.pt"
             ]
         },
         {
