@@ -13,7 +13,7 @@ class VAE(nn.Module):
 
         self.latent_shape = [s//(2**len(hidden_channels)) for s in in_shape]
         self.l1 = int(self.in_channels[-1] * torch.prod(torch.tensor(self.latent_shape)))
-        self.l2 = int(self.in_channels[-1])
+        self.l2 = int(self.latent_dim)
 
         layer_list = []
         for i in range(len(self.in_channels) - 1):
@@ -148,19 +148,19 @@ class VAE(nn.Module):
         return decoded, mu, logvar
 
     def ch_re(self, reco_x, x):
-        return torch.mean(((x - reco_x + 1e-9) ** 2), dim=1)
+        # return torch.mean(((x - reco_x + 1e-9) ** 2), dim=1)
+        return torch.sum((reco_x - x) ** 2, dim=1)
 
     def RE(self, reco_x, x):
-        
         # return torch.mean(self.ch_re(reco_x, x))
         return torch.mean(torch.sum(self.ch_re(reco_x, x), dim=(1,2)))
         # return TF.binary_cross_entropy(reco_x, x)
-    
+
     def KLD(self, mu, logvar):
         kld = 1 + logvar - (mu + 1e-9).pow(2) - (logvar + 1e-9).exp()
         # if torch.any(torch.isinf(kld)):
         #     kld[torch.isinf(kld)] = 0
-        return torch.mean(-0.5*torch.sum(kld, dim=-1))
+        return torch.mean(-0.5*torch.sum(kld, dim=1))
 
     def loss_function(self, reco_x, x, mu, logvar):
         return self.RE(reco_x, x) + self.KLD(mu, logvar)

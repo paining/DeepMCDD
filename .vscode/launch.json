@@ -165,9 +165,9 @@
                 "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation",
                 "--gt_path",
                 "/home/work/.data/dac/PN23_DAC_Silver/SI_06-230927/augmentation/ground_truth",
-                "--num_epochs", "200",
-                "--learning_rate", "0.005",
-                "--save_path", ".result/231107_vae_simple_betalearning",
+                "--num_epochs", "100",
+                "--learning_rate", "0.0005",
+                "--save_path", ".result/231108_vae_simple_minibatch_cyclelearning_ldim=512",
                 "--device", "0"
             ]
         },

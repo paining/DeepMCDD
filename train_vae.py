@@ -73,7 +73,7 @@ def main():
     model = VAE(
         in_channel=1,
         hidden_channels=[32, 64, 128],
-        latent_dim=128,
+        latent_dim=512,
         in_shape=(16, 16)
     )
     if args.ckpt is not None:
@@ -85,7 +85,7 @@ def main():
     logger.info(summary(model, (1, 1, 16, 16)))
 
     if not args.eval:
-        torch.nn.utils.clip_grad.clip_grad_norm(model.parameters(), 5.)
+        # torch.nn.utils.clip_grad.clip_grad_norm(model.parameters(), 1.)
 
         train_loader = get_dataloader(
             os.path.join(args.data_path, "train"),
@@ -141,6 +141,57 @@ def get_dataloader(data_path, gt_path, batch_size=1, shuffle=False):
     )
     return dataloader
 
+### https://github.com/haofuml/cyclical_annealing
+def frange_cycle_linear(start, stop, n_epoch, n_cycle=4, ratio=0.5):
+    L = np.ones(n_epoch)
+    period = n_epoch/n_cycle
+    step = (stop-start)/(period*ratio) # linear schedule
+
+    for c in range(n_cycle):
+
+        v , i = start , 0
+        while v <= stop and (int(i+c*period) < n_epoch):
+            L[int(i+c*period)] = v
+            v += step
+            i += 1
+    return L    
+
+
+def frange_cycle_sigmoid(start, stop, n_epoch, n_cycle=4, ratio=0.5):
+    L = np.ones(n_epoch)
+    period = n_epoch/n_cycle
+    step = (stop-start)/(period*ratio) # step is in [0,1]
+    
+    # transform into [-6, 6] for plots: v*12.-6.
+
+    for c in range(n_cycle):
+
+        v , i = start , 0
+        while v <= stop:
+            L[int(i+c*period)] = 1.0/(1.0+ np.exp(- (v*12.-6.)))
+            v += step
+            i += 1
+    return L    
+
+
+#  function  = 1 − cos(a), where a scans from 0 to pi/2
+import math
+def frange_cycle_cosine(start, stop, n_epoch, n_cycle=4, ratio=0.5):
+    L = np.ones(n_epoch)
+    period = n_epoch/n_cycle
+    step = (stop-start)/(period*ratio) # step is in [0,1]
+    
+    # transform into [0, pi] for plots: 
+
+    for c in range(n_cycle):
+
+        v , i = start , 0
+        while v <= stop:
+            L[int(i+c*period)] = 0.5-.5*math.cos(v*math.pi)
+            v += step
+            i += 1
+    return L    
+
 def train(
         model:VAE,
         train_loader:DataLoader,
@@ -156,14 +207,21 @@ def train(
     patch_size = 16
     stride = 8
     best_loss = 1e10
-    mini_batch = 256
+    mini_batch = 1024
 
-    beta_arr = np.concatenate([
-        np.zeros((epochs//4,)),
-        0.001 * np.ones((epochs//4,)),
-        np.linspace(0.001, 1, epochs//4, endpoint=True),
-        np.ones((epochs - (3*(epochs//4)),))
-    ])
+    # beta_arr = np.concatenate([
+    #     np.zeros((epochs//4,)),
+    #     0.001 * np.ones((epochs//4,)),
+    #     np.linspace(0.001, 1, epochs//4, endpoint=True),
+    #     np.ones((epochs - (3*(epochs//4)),))
+    # ])
+
+    beta_arr = frange_cycle_sigmoid(0, 1, epochs, 4, 0.5)
+    fig, ax = plt.subplots()
+    ax.plot(beta_arr, label="beta")
+    ax.set_title("Cycling Beta Annealing")
+    fig.tight_layout()
+    fig.savefig(os.path.join(log_dir, "beta.png"))
 
     for epoch in trange(epochs, desc="Epochs", ncols=79):
         # beta = min(1, max(0.001, 20.*(epoch-10)/epochs))
@@ -188,42 +246,42 @@ def train(
                     w1=w1
                 )
 
-            # idx =  torch.randperm(x_patch.shape[0])
-            # for batch in torch.split(x_patch[idx], mini_batch):
-            #     optimizer.zero_grad()
-            #     x_, mu, logvar = model(batch)
+            idx =  torch.randperm(x_patch.shape[0])
+            for batch in torch.split(x_patch[idx], mini_batch):
+                optimizer.zero_grad()
+                x_, mu, logvar = model(batch)
 
-            #     re = model.RE(x_, batch)
-            #     kld = beta * model.KLD(mu, logvar)
-            #     loss = re + kld
-            #     train_loss.append(loss.item())
-            #     train_re.append(re.item())
-            #     train_kld.append(kld.item())
+                re = model.RE(x_, batch)
+                kld = model.KLD(mu, logvar)
+                loss = re + beta * kld
+                train_loss.append(loss.item())
+                train_re.append(re.item())
+                train_kld.append(kld.item())
 
-            #     loss.backward()
-            #     for name, param in model.named_parameters():
-            #         grad_ = torch.max(param.grad).item()
-            #         if grad_ > max_grad:
-            #             max_grad = grad_
-            #     optimizer.step()
+                loss.backward()
+                for param in model.parameters():
+                    grad_ = torch.max(param.grad).item()
+                    if grad_ > grad_max:
+                        grad_max = grad_
+                optimizer.step()
 
-            optimizer.zero_grad()
-            x_, mu, logvar = model(x_patch)
+            # optimizer.zero_grad()
+            # x_, mu, logvar = model(x_patch)
 
-            re = model.RE(x_, x_patch)
-            kld = beta * model.KLD(mu, logvar)
-            loss = re + kld
+            # re = model.RE(x_, x_patch)
+            # kld = beta * model.KLD(mu, logvar)
+            # loss = re + kld
 
-            train_loss.append(loss.item())
-            train_re.append(re.item())
-            train_kld.append(kld.item())
+            # train_loss.append(loss.item())
+            # train_re.append(re.item())
+            # train_kld.append(kld.item())
 
-            loss.backward()
-            for param in model.parameters():
-                grad_ = torch.max(param.grad).item()
-                if grad_ > grad_max:
-                    grad_max = grad_
-            optimizer.step()
+            # loss.backward()
+            # for param in model.parameters():
+            #     grad_ = torch.max(param.grad).item()
+            #     if grad_ > grad_max:
+            #         grad_max = grad_
+            # optimizer.step()
 
         train_loss = torch.mean(torch.tensor(train_loss)).item()
         train_re = torch.mean(torch.tensor(train_re)).item()
@@ -255,8 +313,8 @@ def train(
                 x_, mu, logvar = model(x_patch)
 
                 re = model.RE(x_, x_patch)
-                kld = beta * model.KLD(mu, logvar)
-                loss = re + kld
+                kld = model.KLD(mu, logvar)
+                loss = re + beta * kld
                 valid_loss.append(loss.item())
                 valid_re.append(re.item())
                 valid_kld.append(kld.item())
@@ -268,9 +326,11 @@ def train(
 
         writer.add_scalar("loss/Train:RE", train_re, epoch)
         writer.add_scalar("loss/Train:KLD", train_kld, epoch)
+        writer.add_scalar("loss/Train:beta*KLD", beta*train_kld, epoch)
         writer.add_scalar("loss/Train", train_loss, epoch)
         writer.add_scalar("loss/Valid:RE", valid_re, epoch)
         writer.add_scalar("loss/Valid:KLD", valid_kld, epoch)
+        writer.add_scalar("loss/Valid:beta*KLD", beta * valid_kld, epoch)
         writer.add_scalar("loss/Valid", valid_loss, epoch)
         writer.add_scalar("Param/beta", beta, epoch)
         writer.add_scalar("Param/max_grad", grad_max, epoch)
@@ -280,6 +340,7 @@ def train(
             torch.save(model.state_dict(), os.path.join(log_dir, "models", "best.pt"))
         if (epoch+1) % 10 == 0:
             torch.save(model.state_dict(), os.path.join(log_dir, "models", f"{epoch}.pt"))
+        torch.save(model.state_dict(), os.path.join(log_dir, "models", f"latest.pt"))
 
 def visualize(model, test_loader, device, log_dir):
     patch_size = 16
