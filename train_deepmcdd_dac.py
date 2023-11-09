@@ -1,5 +1,6 @@
 import os, argparse, datetime
 import torch
+from torchinfo import summary
 from torch.utils.tensorboard.writer import SummaryWriter
 import numpy as np
 
@@ -55,8 +56,9 @@ def main():
             test_ood = True
         else:
             test_ood = False
+        test_ood = False
         logdir=f"runs/{datetime.datetime.now().strftime('%Y%m%d_%H-%M-%S')}_{os.path.basename(args.outdir)}_{fold_idx}"
-        writer = SummaryWriter(logdir=logdir)
+        writer = SummaryWriter(log_dir=logdir)
         max_acc = 0
         min_loss = 1e10
 
@@ -74,9 +76,12 @@ def main():
             num_classes, num_features = 2, 1536
         elif args.dataset == "dac_3class":
             num_classes, num_features = 3, 1536
+        elif args.dataset == "vae_features":
+            num_classes, num_features = 2, 128
 
-        model = models.MLP_DeepMCDD(num_features, [3000, 2000, 1000, 100], num_classes=num_classes)
+        model = models.MLP_DeepMCDD(num_features, [256, 128, 64, 16], num_classes=num_classes)
         model.cuda()
+        logger.info(summary(model, (1, 1, 16, 16), col_names=["input_size", "output_size", "kernel_size"]))
 
         ce_loss = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
@@ -181,10 +186,10 @@ def main():
             #     ).squeeze().item()
             # )
             # writer.add_scalar("Param/D(mu_0, mu_1)", centroid_dist, epoch)
-            writer.add_scalar("Param/Sigma_0", model.logsigmas[0], epoch)
-            # writer.add_scalar("Param/Sigma_1", model.logsigmas[1], epoch)
-            writer.add_scalar("Param/alpha_0", model.alphas[0], epoch)
-            # writer.add_scalar("Param/alpha_1", model.alphas[1], epoch)
+            
+            for i in range(model.num_classes):
+                writer.add_scalar(f"Param/Sigma_{i}", model.logsigmas[i], epoch)
+                writer.add_scalar(f"Param/alpha_{i}", model.alphas[i], epoch)
 
             writer.flush()
         best_idacc = max(idacc_list)

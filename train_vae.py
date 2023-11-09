@@ -98,16 +98,7 @@ def main():
             shuffle=True
             )
         test_loader = get_dataloader(os.path.join(args.data_path, "test"), args.gt_path)
-        train(
-            model,
-            train_loader,
-            test_loader,
-            args.num_epochs,
-            args.learning_rate,
-            device,
-            args.save_path
-        )
-        # train_patch(
+        # train(
         #     model,
         #     train_loader,
         #     test_loader,
@@ -116,6 +107,15 @@ def main():
         #     device,
         #     args.save_path
         # )
+        train_patch(
+            model,
+            train_loader,
+            test_loader,
+            args.num_epochs,
+            args.learning_rate,
+            device,
+            args.save_path
+        )
     else:
         test_loader = get_dataloader(os.path.join(args.data_path, "test"), args.gt_path)
         log_dir = os.path.join(
@@ -221,6 +221,7 @@ def train(
     stride = 8
     best_loss = 1e10
     mini_batch = 1024
+    logger.info(f"Mini-Batch Size : {mini_batch}")
 
     # beta_arr = np.concatenate([
     #     np.zeros((epochs//4,)),
@@ -373,19 +374,7 @@ def train_patch(
     stride = 8
     best_loss = 1e10
     mini_batch = 1024
-
-    beta_arr = np.concatenate([
-        # np.zeros((epochs//4,)),
-        0.001 * np.ones((epochs//4,)),
-        np.linspace(0.001, 1, 2*(epochs//4), endpoint=True),
-        np.ones((epochs - (3*(epochs//4)),))
-    ])
-    fig, ax = plt.subplots()
-    ax.plot(beta_arr)
-    ax.set_title("beta-annealing")
-    fig.tight_layout()
-    fig.savefig(os.path.join(log_dir, "beta.png"))
-    plt.close(fig)
+    logger.info(f"Mini-Batch Size : {mini_batch}")
 
     # Make Patch-dataset
     patch_dataset = []
@@ -407,15 +396,27 @@ def train_patch(
     patch_dataset = TensorDataset(patch_dataset)
     dataloader = DataLoader(patch_dataset, mini_batch, shuffle=True, num_workers=4)
 
+    beta_arr = frange_cycle_sigmoid(0, 1, epochs*len(dataloader), 4, 0.9)
+    fig, ax = plt.subplots()
+    ax.plot(beta_arr, label="beta")
+    ax.set_title("Cycling Beta Annealing")
+    ax.set_ylabel("beta")
+    ax.set_xlabel("epoch")
+    ax.grid(True, "both", "both", alpha=0.2)
+    fig.tight_layout()
+    fig.savefig(os.path.join(log_dir, "beta.png"))
+
     for epoch in trange(epochs, desc="Epochs", ncols=79):
         # beta = min(1, max(0.001, 20.*(epoch-10)/epochs))
-        beta:float = beta_arr[epoch].item()
+        iter = epoch * len(dataloader)
         train_loss = []
         train_re = []
         train_kld = []
         max_grad = 0
         model.train()
         for x in tqdm(dataloader, ncols=79, desc="Train", leave=False):
+            beta:float = beta_arr[iter].item()
+            iter += 1
             x = x[0].to(device)
             optimizer.zero_grad()
             x_, mu, logvar = model(x)
