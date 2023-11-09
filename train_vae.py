@@ -73,7 +73,7 @@ def main():
     model = VAE(
         in_channel=1,
         hidden_channels=[32, 64, 128],
-        latent_dim=512,
+        latent_dim=16,
         in_shape=(16, 16)
     )
     if args.ckpt is not None:
@@ -233,6 +233,9 @@ def train(
     fig, ax = plt.subplots()
     ax.plot(beta_arr, label="beta")
     ax.set_title("Cycling Beta Annealing")
+    ax.set_ylabel("beta")
+    ax.set_xlabel("epoch")
+    ax.grid(True, "both", "both", alpha=0.2)
     fig.tight_layout()
     fig.savefig(os.path.join(log_dir, "beta.png"))
 
@@ -274,8 +277,8 @@ def train(
                 loss.backward()
                 for param in model.parameters():
                     grad_ = torch.max(param.grad).item()
-                    if grad_ > grad_max:
-                        grad_max = grad_
+                    if grad_ > max_grad:
+                        max_grad = grad_
                 optimizer.step()
 
             # optimizer.zero_grad()
