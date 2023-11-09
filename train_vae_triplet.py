@@ -393,9 +393,9 @@ def train_patch(
                 h1=h1,
                 w1=w1
             )
-            y_patch = TF.unfold(y, kernel_size=patch_size, stride=stride).sum(dim=1)
+            y_patch = TF.unfold(gt, kernel_size=patch_size, stride=stride).sum(dim=1)
             y_patch = rearrange(y_patch, "b (h1 w1) -> (b h1 w1)", h1=h1, w1=w1)
-            idx = torch.logical_and(y_patch == 0, y_patch >= 7)
+            idx = torch.logical_or(y_patch == 0, y_patch >= 7)
             y_patch = y_patch != 0
             patch_dataset.append(x_patch[idx])
             label_dataset.append(y_patch[idx])
@@ -408,7 +408,7 @@ def train_patch(
     beta_arr = 1e-4 * np.ones((epochs*len(dataloader),), dtype=np.float32)
 
     fig, ax = plt.subplots()
-    ax.plot(beta_arr, label="beta")
+    ax.plot(np.linspace(0, epochs, len(beta_arr)), beta_arr, label="beta")
     # ax.set_title("Cycling Beta Annealing")
     ax.set_ylabel("beta")
     ax.set_xlabel("epoch")
@@ -429,7 +429,7 @@ def train_patch(
         train_triplet = []
         max_grad = 0
         model.train()
-        for x in tqdm(dataloader, ncols=79, desc="Train", leave=False):
+        for x, y in tqdm(dataloader, ncols=79, desc="Train", leave=False):
             beta:float = beta_arr[iter].item()
             iter += 1
             loss, re, kld, triplet = train_iter(model, x, y, beta, optimizer, device)
@@ -462,7 +462,7 @@ def train_patch(
                     h1=h1,
                     w1=w1
                 )
-                y_patch = TF.unfold(y, kernel_size=patch_size, stride=stride).sum(dim=1)
+                y_patch = TF.unfold(gt, kernel_size=patch_size, stride=stride).sum(dim=1)
                 y_patch = rearrange(y_patch, "b (h1 w1) -> b 1 h1 w1", h1=h1, w1=w1)
                 if ignore_neighbor != 0:
                     expand = TF.max_pool2d(
@@ -473,7 +473,7 @@ def train_patch(
                 else:
                     expand = y_patch.clone()
                 expand = rearrange(expand, "b 1 h w -> (b h w)")
-                idx = torch.logical_and(expand == 0, y_patch >= 7)
+                idx = torch.logical_or(expand == 0, y_patch >= 7)
                 y_patch = y_patch != 0
 
                 x_patch = x_patch[idx]
@@ -501,7 +501,7 @@ def train_patch(
         writer.add_scalar("loss/Valid:beta*KLD", beta * valid_kld, epoch)
         writer.add_scalar("loss/Valid", valid_loss, epoch)
         writer.add_scalar("Param/beta", beta, epoch)
-        writer.add_scalar("Param/max_grad", max_grad, epoch)
+        # writer.add_scalar("Param/max_grad", max_grad, epoch)
 
         if valid_loss < best_loss:
             best_loss = valid_loss
@@ -554,7 +554,7 @@ def make_triplet(x, y, anchor_id):
     return anchor, positive, negative
 
 def train_iter(model, x, y, beta, optimizer, device):
-    x = x[0].to(device)
+    x = x.to(device)
     if optimizer: optimizer.zero_grad()
     x_, mu, logvar = model(x)
 
@@ -571,10 +571,6 @@ def train_iter(model, x, y, beta, optimizer, device):
 
     if optimizer: 
         loss.backward()
-        for name, param in model.named_parameters():
-            grad_ = torch.max(param.grad).item()
-            if grad_ > max_grad:
-                max_grad = grad_
         optimizer.step()
     return loss.item(), re.item(), kld.item(), triplet_loss.item()
 
