@@ -274,8 +274,8 @@ def train(
                 loss.backward()
                 for param in model.parameters():
                     grad_ = torch.max(param.grad).item()
-                    if grad_ > grad_max:
-                        grad_max = grad_
+                    if grad_ > max_grad:
+                        max_grad = grad_
                 optimizer.step()
 
             # optimizer.zero_grad()

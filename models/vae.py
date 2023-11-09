@@ -87,8 +87,7 @@ class VAE(nn.Module):
 
         self.latent_shape = [s//(2**len(self.encoderblock)) for s in in_shape]
         self.l1 = int(self.in_channels[-1] * torch.prod(torch.tensor(self.latent_shape)))
-        # self.l2 = int(self.in_channels[-1] * torch.sqrt(torch.prod(torch.tensor(self.latent_shape))))
-        self.l2 = int(self.in_channels[-1])
+        self.l2 = int(self.latent_dim)
 
         self.decoderblock = nn.Sequential(*[
             DeConvBlock(self.in_channels[i], self.in_channels[i-1])
@@ -138,28 +137,23 @@ class VAE(nn.Module):
         return eps.mul(std).add_(mu)
     
     def forward(self, x):
-        # std, mean = torch.std_mean(x, dim=(1,2,3))
-        # x = (x - mean)/std
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
         decoded = self.decode(z)
-        # decoded = (decoded + mean)*std
         
         return decoded, mu, logvar
     
     def ch_re(self, reco_x, x):
-        
-        return torch.mean(((x - reco_x + 1e-9) ** 2), dim=-1)
+        return torch.sum(((x - reco_x + 1e-9) ** 2), dim=1)
     
     def RE(self, reco_x, x):
-        
         # return torch.mean(self.ch_re(reco_x, x))
-        return torch.sum(self.ch_re(reco_x, x))
+        return torch.mean(torch.sum(self.ch_re(reco_x, x), dim=(1,2)))
     
     def KLD(self, mu, logvar):
-        
-        return -0.5*torch.sum(1 + logvar - (mu + 1e-9).pow(2) - (logvar + 1e-9).exp())
+        return torch.mean(
+            -0.5*torch.sum(1 + logvar - (mu + 1e-9).pow(2) - (logvar + 1e-9).exp(), dim=1)
+        )
     
     def loss_function(self, reco_x, x, mu, logvar):
-        
         return self.RE(reco_x, x) + self.KLD(mu, logvar)
