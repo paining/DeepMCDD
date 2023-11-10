@@ -402,19 +402,27 @@ def train_patch(
     patch_dataset = torch.cat(patch_dataset, dim=0)
     label_dataset = torch.cat(label_dataset, dim=0)
     patch_dataset = TensorDataset(patch_dataset, label_dataset)
-    dataloader = DataLoader(patch_dataset, mini_batch, shuffle=True, num_workers=4)
+    dataloader = DataLoader(patch_dataset, mini_batch, shuffle=True, num_workers=4, drop_last=True)
 
     # beta_arr = frange_cycle_sigmoid(0, 1, epochs*len(dataloader), 4, 0.9)
     beta_arr = 1e-4 * np.ones((epochs*len(dataloader),), dtype=np.float32)
+    gamma_arr = frange_cycle_sigmoid(0, 1, epochs*len(dataloader), 4, 0.9)
 
     fig, ax = plt.subplots()
-    ax.plot(np.linspace(0, epochs, len(beta_arr)), beta_arr, label="beta")
+    ax.plot(np.linspace(0, epochs, len(beta_arr)), beta_arr, label="beta", color="orange")
+    ax2 = ax.twinx()
+    ax2.plot(np.linspace(0, epochs, len(gamma_arr)), gamma_arr, label="gamma", color="blue")
     # ax.set_title("Cycling Beta Annealing")
-    ax.set_ylabel("beta")
+    # ax.set_ylabel("beta")
+    lines = [line for line in ax.get_lines()] + [line for line in ax2.get_lines()]
+    labels = [line.get_label() for line in lines]
+    ax.legend(lines, labels)
     ax.set_xlabel("epoch")
     ax.grid(True, "both", "both", alpha=0.2)
     fig.tight_layout()
     fig.savefig(os.path.join(log_dir, "beta.png"))
+    plt.close(fig)
+
     log_loss = {
         "train": {"loss": [], "re": [], "kld": [], "triplet": []},
         "valid": {"loss": [], "re": [], "kld": [], "triplet": []},
@@ -429,10 +437,34 @@ def train_patch(
         train_triplet = []
         max_grad = 0
         model.train()
-        for x, y in tqdm(dataloader, ncols=79, desc="Train", leave=False):
-            beta:float = beta_arr[iter].item()
-            iter += 1
-            loss, re, kld, triplet = train_iter(model, x, y, beta, optimizer, device)
+        # for x, y in tqdm(dataloader, ncols=79, desc="Train", leave=False):
+        with tqdm(dataloader, desc="Train", ncols=100, leave=False) as pbar:
+            for x, y in pbar:
+                beta:float = beta_arr[iter].item()
+                gamma:float = gamma_arr[iter].item()
+                iter += 1
+                loss, re, kld, triplet = train_iter(model, x, y, beta, gamma, optimizer, device)
+                if iter % 100 == 0:
+                    pbar.set_postfix({"loss": loss, "re": re, "kld": kld, "triplet": triplet})
+
+                train_loss.append(loss)
+                train_re.append(re)
+                train_kld.append(kld)
+                train_triplet.append(triplet)
+
+        # debugging
+        os.makedirs(os.path.join(log_dir, "tmp", "loss"), exist_ok=True)
+        fig, ax = plt.subplots()
+        ax.plot(train_loss, label="loss", alpha=0.7)
+        ax.plot(train_re, label="re", alpha=0.7)
+        ax.plot(train_kld, label="kld", alpha=0.7)
+        ax.plot(train_triplet, label="triplet", alpha=0.7)
+        ax.legend()
+        ax.set_title(f"Train Losses in {epoch} epoch")
+        ax.set_yscale("log")
+        fig.tight_layout()
+        fig.savefig(os.path.join(log_dir, "tmp", "loss", f"Train {epoch:03d}.png"))
+        plt.close(fig)
 
         train_loss = torch.mean(torch.tensor(train_loss)).item()
         train_re = torch.mean(torch.tensor(train_re)).item()
@@ -479,12 +511,12 @@ def train_patch(
                 x_patch = x_patch[idx]
                 y_patch = y_patch[idx]
 
-                loss, re, kld, triplet = train_iter(model, x_patch, y_patch, beta, None, device)
+                loss, re, kld, triplet = train_iter(model, x_patch, y_patch, beta, gamma, None, device)
 
-                valid_loss.append(loss.item())
-                valid_re.append(re.item())
-                valid_kld.append(kld.item())
-                valid_triplet.append(triplet.item())
+                valid_loss.append(loss)
+                valid_re.append(re)
+                valid_kld.append(kld)
+                valid_triplet.append(triplet)
 
         valid_loss = torch.mean(torch.tensor(valid_loss)).item()
         valid_re = torch.mean(torch.tensor(valid_re)).item()
@@ -506,7 +538,7 @@ def train_patch(
         if valid_loss < best_loss:
             best_loss = valid_loss
             torch.save(model.state_dict(), os.path.join(log_dir, "models", "best.pt"))
-        if (epoch+1) % 10 == 0:
+        if (epoch+1) % 1 == 0:
             torch.save(model.state_dict(), os.path.join(log_dir, "models", f"{epoch}.pt"))
         torch.save(model.state_dict(), os.path.join(log_dir, "models", "latest.pt"))
 
@@ -535,8 +567,8 @@ def train_patch(
         fig.savefig(os.path.join(log_dir, "loss curve.png"))
         plt.close(fig)
 
-
-def make_triplet(x, y, anchor_id):
+from pytorch_metric_learning import miners, losses
+def make_triplet_all(x, y, anchor_id):
     anchor = x[y == anchor_id]
     positive = x[y == anchor_id]
     negative = x[y != anchor_id]
@@ -553,17 +585,37 @@ def make_triplet(x, y, anchor_id):
     negative = negative.reshape(1, 1, n_n, -1).repeat(n_a, n_p, 1, 1).reshape(-1,out_ch)
     return anchor, positive, negative
 
-def train_iter(model, x, y, beta, optimizer, device):
+def make_triplet_softhard(x, y, anchor_id):
+    anchor = x[y == anchor_id]
+    positive = x[y == anchor_id]
+    negative = x[y != anchor_id]
+
+    if len(anchor) == 0 or len(negative) == 0:
+        return None
+
+    dist_pos = torch.cdist(anchor, positive)
+    dist_neg = torch.cdist(anchor, negative)
+
+    n_a = anchor.shape[0]
+    n_p = positive.shape[0]
+    n_n = negative.shape[0]
+    out_ch = x.shape[-1]
+    anchor = anchor.reshape(n_a, 1, 1, -1).repeat(1, n_p, n_n, 1).reshape(-1, out_ch)
+    positive = positive.reshape(1, n_p, 1, -1).repeat(n_a, 1, n_n, 1).reshape(-1, out_ch)
+    negative = negative.reshape(1, 1, n_n, -1).repeat(n_a, n_p, 1, 1).reshape(-1,out_ch)
+    return anchor, positive, negative
+
+def train_iter(model, x, y, beta, gamma, optimizer, device):
     x = x.to(device)
     if optimizer: optimizer.zero_grad()
     x_, mu, logvar = model(x)
 
-    triplet = make_triplet(mu, y, 0)
+    triplet = make_triplet_all(mu, y, 0)
     if triplet is not None:
         anchor, positive, negative = triplet
-        triplet_loss = TF.triplet_margin_loss(anchor, positive, negative)
+        triplet_loss = gamma * TF.triplet_margin_loss(anchor, positive, negative)
     else:
-        triplet_loss = 0
+        triplet_loss = torch.tensor(0, device=device)
 
     re = model.RE(x_, x)
     kld = beta * model.KLD(mu, logvar)
