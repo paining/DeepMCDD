@@ -45,6 +45,7 @@ def arg_parse():
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--ckpt", type=str, default=None)
     parser.add_argument("--sampling", type=str, default="semihard")
+    parser.add_argument("--anchor_id", type=int, nargs="*", default=0)
 
     return parser.parse_args()
 
@@ -77,7 +78,7 @@ def main():
         hidden_channels=[32, 64, 128],
         latent_dim=16,
         in_shape=(16, 16),
-        anchor_id=0,
+        anchor_id=args.anchor_id,
         margin=1,
         sampling_type=args.sampling
     )
