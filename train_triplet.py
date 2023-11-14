@@ -77,7 +77,7 @@ def main():
         hidden_channels=[32, 64, 128],
         latent_dim=16,
         in_shape=(16, 16),
-        anchor_id=1,
+        anchor_id=0,
         margin=1,
         sampling_type=args.sampling
     )
@@ -97,7 +97,7 @@ def main():
             (1, 1, 16, 16),
             col_names=['input_size', 'output_size', 'kernel_size'],
             depth=4,
-            verbose=0
+            verbose=0,
         )
     )
 
