@@ -56,7 +56,8 @@ def main():
     os.makedirs(args.save_path, exist_ok=True)
     os.makedirs(os.path.join(args.save_path, "models"), exist_ok=True)
     set_logger("log.yaml", args.save_path)
-    logger.info(args)
+    # logger.info(args)
+    logger.info("\n".join([f"{k:15s} {v}" for k, v in vars(args).items()]))
 
     device = torch.device("cpu") if args.device is None else torch.device(args.device)
 
@@ -493,9 +494,9 @@ def train_patch(
                 x_patch = x_patch[idx]
                 y_patch = y_patch[idx]
 
-                loss = model.loss_function(x_patch, y_patch)
-
-                valid_loss["loss"].append(loss.item() if loss is not None else 0)
+                for x_, y_ in zip(x_patch.split(mini_batch), y_patch.split(mini_batch)):
+                    loss = model.loss_function(x_, y_)
+                    valid_loss["loss"].append(loss.item() if loss is not None else 0)
 
 
         for k, v in valid_loss.items():
