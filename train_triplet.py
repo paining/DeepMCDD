@@ -44,6 +44,7 @@ def arg_parse():
     parser.add_argument("--padding_mode", type=str, default="replicate")
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--ckpt", type=str, default=None)
+    parser.add_argument("--sampling", type=str, default="semihard")
 
     return parser.parse_args()
 
@@ -77,7 +78,8 @@ def main():
         latent_dim=16,
         in_shape=(16, 16),
         anchor_id=0,
-        margin=3
+        margin=1,
+        sampling_type=args.sampling
     )
     if args.ckpt is not None:
         model.load_state_dict(torch.load(args.ckpt, map_location="cpu"))
@@ -89,7 +91,15 @@ def main():
     data = torch.zeros((1,1,16,16), device=device)
     model(data)
     logger.info(model)
-    logger.info(summary(model, (1, 1, 16, 16), col_names=['input_size', 'output_size', 'kernel_size']))
+    logger.info(
+        summary(
+            model,
+            (1, 1, 16, 16),
+            col_names=['input_size', 'output_size', 'kernel_size'],
+            depth=4,
+            verbose=0,
+        )
+    )
 
     if not args.eval:
         # torch.nn.utils.clip_grad.clip_grad_norm(model.parameters(), 1.)

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as TF
-from pytorch_metric_learning import miners, losses
+
 
 class ConvEocoder(nn.Module):
     def __init__(self, in_channel, hidden_channels):
@@ -31,7 +31,7 @@ class ConvEocoder(nn.Module):
     def forward(self, x):
         return self.encoder(x)
 
-def make_triplet_all(x, y, anchor_id):
+def make_triplet_all(x, y, anchor_id, margin):
     anchor = x[y == anchor_id]
     positive = x[y == anchor_id]
     negative = x[y != anchor_id]
