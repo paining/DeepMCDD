@@ -78,6 +78,8 @@ def main():
             num_classes, num_features = 3, 1536
         elif args.dataset == "vae_features":
             num_classes, num_features = 2, 128
+        elif args.dataset == "dac_softtriplet":
+            num_classes, num_features = 2, 128
 
         model = models.MLP_DeepMCDD(num_features, [256, 128, 64, 16], num_classes=num_classes)
         model.cuda()

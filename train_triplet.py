@@ -494,7 +494,7 @@ def train_patch(
                 x_patch = x_patch[idx]
                 y_patch = y_patch[idx]
 
-                for x_, y_ in zip(x_patch.split(mini_batch), y_patch.split(mini_batch)):
+                for x_, y_ in zip(x_patch.split(mini_batch//4), y_patch.split(mini_batch//4)):
                     loss = model.loss_function(x_, y_)
                     valid_loss["loss"].append(loss.item() if loss is not None else 0)
 
